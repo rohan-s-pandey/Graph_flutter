@@ -3,90 +3,113 @@ import 'package:fl_chart/fl_chart.dart';
 
 class BarChartWidget extends StatelessWidget {
   final List<BarChartGroupData> barData;
-  final List<String> barLabels; // Accept bar labels here
   final String xAxisLabel;
   final String yAxisLabel;
+  final List<String> barLabels;
 
-  BarChartWidget({
+  const BarChartWidget({
+    Key? key,
     required this.barData,
-    required this.barLabels, // Receive labels from AddDataPage
     required this.xAxisLabel,
     required this.yAxisLabel,
-  });
+    required this.barLabels,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return AspectRatio(
-      aspectRatio: 1.5,
-      child: BarChart(
-        BarChartData(
-          barGroups: barData,
-          titlesData: FlTitlesData(
-            leftTitles: AxisTitles(
-              axisNameWidget: Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: Text(
-                  yAxisLabel,
-                  style: TextStyle(
-                    color: Colors.grey[700],
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
+    String trendMessage = _calculateTrendMessage(barData);
+
+    return Column(
+      children: [
+        Expanded(
+          child: BarChart(
+            BarChartData(
+              barGroups: barData,
+              titlesData: FlTitlesData(
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(showTitles: true),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(showTitles: true),
                 ),
               ),
-              sideTitles: SideTitles(showTitles: true),
+              // Other chart properties...
             ),
-            bottomTitles: AxisTitles(
-              axisNameWidget: Padding(
-                padding: const EdgeInsets.only(top: 8.0),
-                child: Text(
-                  xAxisLabel,
-                  style: TextStyle(
-                    color: Colors.grey[700],
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              sideTitles: SideTitles(
-                showTitles: true,
-                getTitlesWidget: (value, meta) {
-                  int index = value.toInt();
-                  if (index >= 0 && index < barLabels.length) {
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 4.0),
-                      child: Text(
-                        barLabels[index],
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 10,
-                        ),
-                      ),
-                    );
-                  }
-                  return SizedBox.shrink();
-                },
-              ),
-            ),
-          ),
-          gridData: FlGridData(show: true),
-          borderData: FlBorderData(show: true),
-          barTouchData: BarTouchData(
-            touchTooltipData: BarTouchTooltipData(
-              getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                return BarTooltipItem(
-                  '${barLabels[groupIndex]}: ${rod.toY}',
-                  const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                );
-              },
-            ),
-            handleBuiltInTouches: true,
           ),
         ),
-      ),
+        Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Text(
+            trendMessage,
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            textAlign: TextAlign.center, // Center the text for better UI
+          ),
+        ),
+      ],
     );
+  }
+
+  String _calculateTrendMessage(List<BarChartGroupData> data) {
+    if (data.length < 2) {
+      return 'Not enough data to determine trend';
+    }
+
+    List<double> values = data.map((group) => group.barRods[0].toY).toList();
+
+    bool isOverallIncreasing = true;
+    bool hasSingleDrop = false;
+    int dropIndex = -1;
+
+    for (int i = 1; i < values.length; i++) {
+      if (values[i] < values[i - 1]) {
+        // If we have already seen a drop
+        if (hasSingleDrop) {
+          isOverallIncreasing = false; // More than one drop
+          break;
+        } else {
+          hasSingleDrop = true; // Mark the first drop
+          dropIndex = i;
+        }
+      }
+    }
+
+    if (isOverallIncreasing) {
+      if (hasSingleDrop) {
+        return 'Values are increasing except at value ${dropIndex}';
+      } else {
+        return 'Values are steadily increasing';
+      }
+    } else {
+      // Resetting for a decreasing check
+      isOverallIncreasing = false;
+      hasSingleDrop = false;
+      dropIndex = -1;
+
+      for (int i = 1; i < values.length; i++) {
+        if (values[i] > values[i - 1]) {
+          // If we have already seen an increase
+          if (hasSingleDrop) {
+            isOverallIncreasing = false; // More than one increase
+            break;
+          } else {
+            hasSingleDrop = true; // Mark the first increase
+            dropIndex = i;
+          }
+        }
+      }
+
+      if (hasSingleDrop) {
+        return 'Values are decreasing except at value ${dropIndex}';
+      } else {
+        return 'Values are steadily decreasing';
+      }
+    }
+
+    // Handling start and end scenarios
+    if (values.first < values.last) {
+      return 'Value was increased from ${values.first} to ${values.last} and then started decreasing';
+    } else {
+      return 'Value was decreased from ${values.first} to ${values.last} and then started increasing';
+    }
   }
 }
